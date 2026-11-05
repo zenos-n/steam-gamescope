@@ -37,13 +37,21 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(argv[argv.index("-r")+1], "144")
         self.assertEqual(argv[argv.index("-W")+1], "2560")
         self.assertEqual(argv[argv.index("-H")+1], "1440")
-        self.assertEqual(argv[-3:], ["--", "steam", "-gamepadui"])
+        self.assertEqual(argv[-2:], ["steam", "-gamepadui"])
 
     def test_fractional_refresh_rounds_to_gamescope_whole_hz(self):
         mode = primary_mode(state())
         mode["refresh_hz"] = 59.94
         argv = command(mode, 1)
         self.assertEqual(argv[argv.index("-r")+1], "60")
+
+    def test_host_sdl_driver_does_not_leak_into_nested_games(self):
+        mode = primary_mode(state())
+        argv = command(mode, 0)
+        client = argv[argv.index("--")+1:]
+        self.assertEqual(client[:5], ["env", "-u", "SDL_VIDEODRIVER", "-u", "SDL_VIDEO_WAYLAND_WMCLASS"])
+        restored = command(mode, 0, {"SDL_VIDEODRIVER": "x11"})
+        self.assertIn("SDL_VIDEODRIVER=x11", restored)
 
 
 if __name__ == "__main__":

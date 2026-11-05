@@ -75,15 +75,22 @@ def display_index(mode, displays):
     return next((d["index"] for d in candidates if d["name"] == mode["connector"]), candidates[0]["index"])
 
 
-def command(mode, index):
+def command(mode, index, previous=None):
     # Gamescope's CLI takes integer Hz; seed the virtual display before it starts.
     refresh = max(1, int(mode["refresh_hz"] + 0.5))
+    previous = previous or {}
+    client = ["env"]
+    for key in ("SDL_VIDEODRIVER", "SDL_VIDEO_WAYLAND_WMCLASS"):
+        if previous.get(key) is None:
+            client.extend(["-u", key])
+    client.extend(f"{key}={value}" for key, value in previous.items() if value is not None)
+    client.extend(["steam", "-gamepadui"])
     return ["gamescope", "--backend", "sdl", "--display-index", str(index),
             "-f", "-e", "--xwayland-count", "2",
             "-W", str(mode["width"]), "-H", str(mode["height"]),
             "-w", str(mode["width"]), "-h", str(mode["height"]),
             "-r", str(refresh),
-            "--", "steam", "-gamepadui"]
+            "--", *client]
 
 
 def steam_running():
@@ -115,12 +122,13 @@ def main():
         return fail("Quit Steam completely, then open Steam (Gamescope) again.")
     if not os.environ.get("WAYLAND_DISPLAY"):
         return fail("This launcher requires a GNOME Wayland session.")
+    previous = {key: os.environ.get(key) for key in ("SDL_VIDEODRIVER", "SDL_VIDEO_WAYLAND_WMCLASS")}
     os.environ["SDL_VIDEODRIVER"] = "wayland"
     os.environ["SDL_VIDEO_WAYLAND_WMCLASS"] = APP_ID
     try:
         mode = primary_mode(current_state())
         index = display_index(mode, sdl_displays())
-        argv = command(mode, index)
+        argv = command(mode, index, previous)
     except Exception as error:
         return fail(f"Could not detect the primary display: {error}")
     if args.print_plan:
