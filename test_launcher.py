@@ -32,12 +32,18 @@ class LauncherTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             display_index(mode, displays[:1])
 
-    def test_no_fixed_refresh_or_other_display_dimensions(self):
+    def test_detected_refresh_and_dimensions_are_passed_at_startup(self):
         argv = command(primary_mode(state()), 1)
-        self.assertNotIn("-r", argv)
+        self.assertEqual(argv[argv.index("-r")+1], "144")
         self.assertEqual(argv[argv.index("-W")+1], "2560")
         self.assertEqual(argv[argv.index("-H")+1], "1440")
         self.assertEqual(argv[-3:], ["--", "steam", "-gamepadui"])
+
+    def test_fractional_refresh_rounds_to_gamescope_whole_hz(self):
+        mode = primary_mode(state())
+        mode["refresh_hz"] = 59.94
+        argv = command(mode, 1)
+        self.assertEqual(argv[argv.index("-r")+1], "60")
 
 
 if __name__ == "__main__":

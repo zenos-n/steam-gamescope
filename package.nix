@@ -5,7 +5,7 @@ let
 in
 stdenvNoCC.mkDerivation {
   pname = "steam-gamescope";
-  version = "1.0.0";
+  version = "1.0.1";
   src = lib.cleanSource ./.;
   nativeBuildInputs = [ makeWrapper copyDesktopItems ];
   dontBuild = true;

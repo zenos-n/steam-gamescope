@@ -6,9 +6,10 @@ at each launch, then maps that monitor to the same SDL2 Wayland backend used by
 Gamescope. Fractional scaling and rotated displays are accounted for. No screen
 size, refresh rate, or connector is hardcoded.
 
-Gamescope follows the selected display's refresh automatically: the launcher
-sets no `-r` FPS limit. Rendering and output start at the detected native pixel
-dimensions. Relaunch after changing which monitor is primary or its resolution.
+Rendering, output and the virtual game display start at the detected native pixel
+dimensions and active refresh. Gamescope's `-r` CLI accepts whole Hz, so fractional
+rates are rounded to the nearest Hz; the host compositor still controls actual
+presentation timing. Relaunch after changing the primary monitor or its mode.
 
 Install through ZenPkgs as `com.neg-zero.SteamGamescope` or
 `apps.gaming.steam-gamescope`. The package consumes the curated Steam package,

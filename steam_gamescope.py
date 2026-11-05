@@ -76,11 +76,13 @@ def display_index(mode, displays):
 
 
 def command(mode, index):
-    # No -r: Gamescope's SDL backend follows this output's desktop refresh.
+    # Gamescope's CLI takes integer Hz; seed the virtual display before it starts.
+    refresh = max(1, int(mode["refresh_hz"] + 0.5))
     return ["gamescope", "--backend", "sdl", "--display-index", str(index),
             "-f", "-e", "--xwayland-count", "2",
             "-W", str(mode["width"]), "-H", str(mode["height"]),
             "-w", str(mode["width"]), "-h", str(mode["height"]),
+            "-r", str(refresh),
             "--", "steam", "-gamepadui"]
 
 
@@ -124,7 +126,7 @@ def main():
     if args.print_plan:
         print(json.dumps({"monitor": mode, "display_index": index, "argv": argv}, indent=2))
         return 0
-    print(f'Steam (Gamescope): {mode["connector"]}, {mode["width"]}×{mode["height"]}, automatic refresh', flush=True)
+    print(f'Steam (Gamescope): {mode["connector"]}, {mode["width"]}×{mode["height"]}, {mode["refresh_hz"]:.3f} Hz', flush=True)
     try:
         os.execvp(argv[0], argv)
     except OSError as error:
