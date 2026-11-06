@@ -1,4 +1,7 @@
 import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock
+from loading import steam_visible
 from steam_gamescope import primary_mode, display_index, command
 
 
@@ -37,7 +40,8 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(argv[argv.index("-r")+1], "144")
         self.assertEqual(argv[argv.index("-W")+1], "2560")
         self.assertEqual(argv[argv.index("-H")+1], "1440")
-        self.assertEqual(argv[-2:], ["steam", "-gamepadui"])
+        self.assertEqual(argv[-1], "steam-gamescope-session")
+        self.assertIn("--mangoapp", argv)
 
     def test_fractional_refresh_rounds_to_gamescope_whole_hz(self):
         mode = primary_mode(state())
@@ -52,6 +56,22 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(client[:5], ["env", "-u", "SDL_VIDEODRIVER", "-u", "SDL_VIDEO_WAYLAND_WMCLASS"])
         restored = command(mode, 0, {"SDL_VIDEODRIVER": "x11"})
         self.assertIn("SDL_VIDEODRIVER=x11", restored)
+
+    def test_loading_only_yields_to_a_visible_meaningful_steam_window(self):
+        def window(classes, mapped, width=1280, height=720):
+            item = Mock()
+            item.get_wm_class.return_value = classes
+            item.get_attributes.return_value = SimpleNamespace(map_state=mapped)
+            item.get_geometry.return_value = SimpleNamespace(width=width, height=height)
+            return item
+        connection = Mock()
+        hidden = window(("steam", "Steam"), 0)
+        tiny = window(("steam", "Steam"), 2, 1, 1)
+        loading = window(("zenos-steam-loading", "ZenosSteamLoading"), 2)
+        connection.screen().root.query_tree.return_value.children = [hidden, tiny, loading]
+        self.assertFalse(steam_visible(connection))
+        connection.screen().root.query_tree.return_value.children.append(window(("steam", "Steam"), 2))
+        self.assertTrue(steam_visible(connection))
 
 
 if __name__ == "__main__":

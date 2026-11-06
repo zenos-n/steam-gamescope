@@ -84,9 +84,9 @@ def command(mode, index, previous=None):
         if previous.get(key) is None:
             client.extend(["-u", key])
     client.extend(f"{key}={value}" for key, value in previous.items() if value is not None)
-    client.extend(["steam", "-gamepadui"])
+    client.append(os.environ.get("STEAM_GAMESCOPE_SESSION", "steam-gamescope-session"))
     return ["gamescope", "--backend", "sdl", "--display-index", str(index),
-            "-f", "-e", "--xwayland-count", "2",
+            "-f", "-e", "--mangoapp", "--xwayland-count", "2",
             "-W", str(mode["width"]), "-H", str(mode["height"]),
             "-w", str(mode["width"]), "-h", str(mode["height"]),
             "-r", str(refresh),

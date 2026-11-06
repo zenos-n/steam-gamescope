@@ -17,6 +17,16 @@ including its existing private-home setup and Proton GE. It provides
 `steam-gamescope` and `com.neg-zero.SteamGamescope.desktop`, using the theme's
 Steam icon. Ordinary Steam and its URL associations are unchanged.
 
+A dark loading screen with the themed Steam icon and spinner appears **inside**
+Gamescope while Steam starts. It disappears when Steam presents a visible window,
+including an updater or login window. Hidden helper windows do not dismiss it.
+Launch failure/exit closes it; a failed window probe never permanently covers Steam.
+
+The launcher includes and starts MangoApp, the performance-overlay component
+selected by Steam's Gamescope integration. Steam retains control of its overlay
+settings. Games keep their own refresh/VSync/frame-limit settings: a detected
+120 Hz display does not override a game's saved 60 Hz mode or VSync choice.
+
 Quit any existing Steam client first. Steam is a singleton; otherwise it forwards
 the launch request to the existing client outside Gamescope. This launcher reports
 that situation and never closes Steam or running games automatically.
