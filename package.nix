@@ -9,7 +9,7 @@ let
 in
 stdenvNoCC.mkDerivation {
   pname = "steam-gamescope";
-  version = "1.2.0";
+  version = "1.2.1";
   src = lib.cleanSource ./.;
   nativeBuildInputs = [ makeWrapper copyDesktopItems wrapGAppsHook3 gobject-introspection ];
   buildInputs = [ gtk3 hicolor-icon-theme steam ];
@@ -49,6 +49,8 @@ stdenvNoCC.mkDerivation {
     runHook postInstall
   '';
   postFixup = ''
+    substituteInPlace "$out/share/applications/com.neg-zero.SteamGamescope.desktop" \
+      --replace-fail 'Exec=steam-gamescope' "Exec=$out/bin/steam-gamescope"
     wrapGApp "$out/libexec/steam-gamescope/session"
   '';
   doInstallCheck = true;
