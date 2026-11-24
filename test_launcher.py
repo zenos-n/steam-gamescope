@@ -1,8 +1,12 @@
 import unittest
+import subprocess
+import sys
+import os
+import json
 from types import SimpleNamespace
 from unittest.mock import Mock
 from loading import steam_visible
-from steam_gamescope import primary_mode, display_index, command
+from steam_gamescope import primary_mode, display_index, command, keyboard_environment, cursor_environment
 
 
 def state(transform=0, scale=1.0):
@@ -41,7 +45,24 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(argv[argv.index("-W")+1], "2560")
         self.assertEqual(argv[argv.index("-H")+1], "1440")
         self.assertEqual(argv[-1], "steam-gamescope-session")
-        self.assertIn("--mangoapp", argv)
+        self.assertNotIn("--mangoapp", argv)
+
+    def test_keyboard_copies_polish_instead_of_defaulting_to_us(self):
+        self.assertEqual(keyboard_environment([("xkb", "pl")], []), {
+            "XKB_DEFAULT_LAYOUT": "pl", "XKB_DEFAULT_VARIANT": "",
+            "XKB_DEFAULT_OPTIONS": ""})
+
+    def test_keyboard_preserves_variants_options_and_selected_source(self):
+        self.assertEqual(keyboard_environment([("xkb", "us+intl"), ("xkb", "pl")],
+                                             ["caps:escape", "compose:ralt"], 1), {
+            "XKB_DEFAULT_LAYOUT": "pl,us", "XKB_DEFAULT_VARIANT": ",intl",
+            "XKB_DEFAULT_OPTIONS": "caps:escape,compose:ralt"})
+
+    def test_keyboard_does_not_silently_replace_an_input_method_with_us(self):
+        with self.assertRaisesRegex(ValueError, "IBus"):
+            keyboard_environment([("ibus", "mozc-jp")], [])
+        with self.assertRaises(ValueError):
+            keyboard_environment([], [])
 
     def test_fractional_refresh_rounds_to_gamescope_whole_hz(self):
         mode = primary_mode(state())
@@ -53,9 +74,36 @@ class LauncherTests(unittest.TestCase):
         mode = primary_mode(state())
         argv = command(mode, 0)
         client = argv[argv.index("--")+1:]
-        self.assertEqual(client[:5], ["env", "-u", "SDL_VIDEODRIVER", "-u", "SDL_VIDEO_WAYLAND_WMCLASS"])
+        self.assertEqual(client[0], "env")
+        self.assertIn("SDL_VIDEODRIVER", client)
+        self.assertIn("SDL_VIDEO_WAYLAND_WMCLASS", client)
         restored = command(mode, 0, {"SDL_VIDEODRIVER": "x11"})
         self.assertIn("SDL_VIDEODRIVER=x11", restored)
+
+    def test_hdr_uses_color_managed_wayland_and_exposes_it_to_proton(self):
+        mode = primary_mode(state())
+        mode.update(hdr=True, vrr=True)
+        argv = command(mode, None)
+        self.assertEqual(argv[argv.index("--backend")+1], "wayland")
+        self.assertIn("--hdr-enabled", argv)
+        self.assertIn("--adaptive-sync", argv)
+        self.assertIn("DXVK_HDR=1", argv)
+        self.assertIn("ENABLE_GAMESCOPE_WSI=1", argv)
+        self.assertNotIn("--display-index", argv)
+
+    def test_hdr_child_environment_executes_with_options_before_assignments(self):
+        mode = primary_mode(state()); mode["hdr"] = True
+        argv = command(mode, None)
+        client = argv[argv.index("--")+1:-1]
+        result = subprocess.check_output(client + [sys.executable, "-c",
+            "import os,json;print(json.dumps([os.getenv('DXVK_HDR'),os.getenv('SDL_VIDEODRIVER')]))"],
+            env=dict(os.environ, SDL_VIDEODRIVER="wayland"), text=True)
+        self.assertEqual(json.loads(result), ["1", None])
+
+    def test_cursor_uses_effective_gnome_size_and_monitor_scale(self):
+        self.assertEqual(cursor_environment("GoogleDot-Black", 24, 5/3),
+                         {"XCURSOR_THEME": "GoogleDot-Black", "XCURSOR_SIZE": "40"})
+        self.assertEqual(cursor_environment("Adwaita", 32, 1.5)["XCURSOR_SIZE"], "48")
 
     def test_loading_only_yields_to_a_visible_meaningful_steam_window(self):
         def window(classes, mapped, width=1280, height=720):

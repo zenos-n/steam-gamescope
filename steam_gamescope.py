@@ -30,7 +30,9 @@ def primary_mode(state):
     if width <= 0 or height <= 0 or mode[3] <= 0:
         raise ValueError("invalid active display mode")
     return {"connector": spec[0], "x": primary[0], "y": primary[1],
-            "width": width, "height": height, "refresh_hz": mode[3]}
+            "width": width, "height": height, "refresh_hz": mode[3],
+            "scale": primary[2], "hdr": monitor[2].get("color-mode", 0) == 1,
+            "vrr": mode[6].get("refresh-rate-mode") == "variable"}
 
 
 def current_state():
@@ -40,6 +42,45 @@ def current_state():
                           "org.gnome.Mutter.DisplayConfig", "GetCurrentState", None, None,
                           Gio.DBusCallFlags.NONE, 5000, None)
     return result.unpack()
+
+
+def keyboard_environment(sources, options, current=0):
+    # GNOME source IDs encode XKB layout+variant, not a language/locale name.
+    if not sources:
+        raise ValueError("GNOME has no configured keyboard input source")
+    current = current if 0 <= current < len(sources) else 0
+    ordered = sources[current:] + sources[:current]
+    layouts, variants = [], []
+    for kind, identifier in ordered:
+        if kind != "xkb":
+            raise ValueError("Gamescope cannot mirror an IBus input method as an XKB layout")
+        layout, _, variant = identifier.partition("+")
+        if not layout:
+            raise ValueError("GNOME has an empty keyboard layout")
+        layouts.append(layout)
+        variants.append(variant)
+    return {"XKB_DEFAULT_LAYOUT": ",".join(layouts),
+            "XKB_DEFAULT_VARIANT": ",".join(variants),
+            "XKB_DEFAULT_OPTIONS": ",".join(options)}
+
+
+def current_keyboard_environment():
+    from gi.repository import Gio
+    settings = Gio.Settings.new("org.gnome.desktop.input-sources")
+    return keyboard_environment(settings.get_value("sources").unpack(),
+                                list(settings.get_strv("xkb-options")),
+                                settings.get_uint("current"))
+
+
+def cursor_environment(theme, size, scale):
+    # Xwayland in Gamescope uses physical pixels, unlike the scaled GNOME desktop.
+    return {"XCURSOR_THEME": theme, "XCURSOR_SIZE": str(max(1, int(size * scale + 0.5)))}
+
+
+def current_cursor_environment(mode):
+    from gi.repository import Gio
+    settings = Gio.Settings.new("org.gnome.desktop.interface")
+    return cursor_environment(settings.get_string("cursor-theme"), settings.get_int("cursor-size"), mode["scale"])
 
 
 def sdl_displays():
@@ -85,8 +126,16 @@ def command(mode, index, previous=None):
             client.extend(["-u", key])
     client.extend(f"{key}={value}" for key, value in previous.items() if value is not None)
     client.append(os.environ.get("STEAM_GAMESCOPE_SESSION", "steam-gamescope-session"))
-    return ["gamescope", "--backend", "sdl", "--display-index", str(index),
-            "-f", "-e", "--mangoapp", "--xwayland-count", "2",
+    backend = ["--backend", "wayland", "--hdr-enabled"] if mode.get("hdr") else ["--backend", "sdl", "--display-index", str(index)]
+    if mode.get("vrr"):
+        backend.append("--adaptive-sync")
+    client[-1:-1] = ["ENABLE_GAMESCOPE_WSI=1", "DXVK_HDR=" + ("1" if mode.get("hdr") else "0")]
+    wsi = os.environ.get("STEAM_GAMESCOPE_WSI")
+    if wsi:
+        existing = os.environ.get("VK_ADD_IMPLICIT_LAYER_PATH", "")
+        client.insert(len(client)-1, "VK_ADD_IMPLICIT_LAYER_PATH=" + wsi + (":" + existing if existing else ""))
+    return ["gamescope", *backend,
+            "-f", "-e", "--xwayland-count", "2",
             "-W", str(mode["width"]), "-H", str(mode["height"]),
             "-w", str(mode["width"]), "-h", str(mode["height"]),
             "-r", str(refresh),
@@ -126,13 +175,17 @@ def main():
     os.environ["SDL_VIDEODRIVER"] = "wayland"
     os.environ["SDL_VIDEO_WAYLAND_WMCLASS"] = APP_ID
     try:
+        keyboard = current_keyboard_environment()
+        os.environ.update(keyboard)
         mode = primary_mode(current_state())
-        index = display_index(mode, sdl_displays())
+        cursor = current_cursor_environment(mode)
+        os.environ.update(cursor)
+        index = None if mode["hdr"] else display_index(mode, sdl_displays())
         argv = command(mode, index, previous)
     except Exception as error:
-        return fail(f"Could not detect the primary display: {error}")
+        return fail(f"Could not prepare the display and keyboard: {error}")
     if args.print_plan:
-        print(json.dumps({"monitor": mode, "display_index": index, "argv": argv}, indent=2))
+        print(json.dumps({"monitor": mode, "display_index": index, "keyboard": keyboard, "cursor": cursor, "argv": argv}, indent=2))
         return 0
     print(f'Steam (Gamescope): {mode["connector"]}, {mode["width"]}×{mode["height"]}, {mode["refresh_hz"]:.3f} Hz', flush=True)
     try:

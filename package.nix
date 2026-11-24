@@ -1,12 +1,15 @@
 { lib, stdenvNoCC, python3, makeWrapper, makeDesktopItem, copyDesktopItems
 , gamescope, steam, SDL2, glib, gtk3, wrapGAppsHook3, libnotify, coreutils
-, mangohud, xvfb-run, makeFontsConf, dejavu_fonts, gobject-introspection, hicolor-icon-theme }:
+, xvfb-run, makeFontsConf, dejavu_fonts, gobject-introspection, hicolor-icon-theme }:
 let
+  desktopGamescope = (gamescope.override { enableWsi = true; }).overrideAttrs (old: {
+    patches = (old.patches or []) ++ [ ./patches/gnome-hdr10.patch ];
+  });
   python = python3.withPackages (p: [ p.pygobject3 p.xlib ]);
 in
 stdenvNoCC.mkDerivation {
   pname = "steam-gamescope";
-  version = "1.1.0";
+  version = "1.2.0";
   src = lib.cleanSource ./.;
   nativeBuildInputs = [ makeWrapper copyDesktopItems wrapGAppsHook3 gobject-introspection ];
   buildInputs = [ gtk3 hicolor-icon-theme steam ];
@@ -15,7 +18,6 @@ stdenvNoCC.mkDerivation {
   doCheck = true;
   nativeCheckInputs = [ xvfb-run ];
   checkPhase = ''
-    test -x ${mangohud}/bin/mangoapp
     PYTHONDONTWRITEBYTECODE=1 ${python}/bin/python3 -m unittest -v test_launcher
   '';
   desktopItems = [ (makeDesktopItem {
@@ -39,10 +41,11 @@ stdenvNoCC.mkDerivation {
       --prefix PATH : ${lib.makeBinPath [ steam ]}
     makeWrapper ${python}/bin/python3 "$out/bin/steam-gamescope" \
       --add-flags "$out/libexec/steam-gamescope/steam_gamescope.py" \
+      --set STEAM_GAMESCOPE_WSI "${desktopGamescope}/share/vulkan/implicit_layer.d" \
       --set STEAM_GAMESCOPE_SESSION "$out/libexec/steam-gamescope/session" \
       --set STEAM_GAMESCOPE_SDL_LIBRARY "${lib.getLib SDL2}/lib/libSDL2-2.0.so.0" \
       --prefix GI_TYPELIB_PATH : "${lib.getLib glib}/lib/girepository-1.0" \
-      --prefix PATH : ${lib.makeBinPath [ gamescope steam mangohud libnotify coreutils ]}
+      --prefix PATH : ${lib.makeBinPath [ desktopGamescope steam libnotify coreutils ]}
     runHook postInstall
   '';
   postFixup = ''

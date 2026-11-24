@@ -2,8 +2,8 @@
 
 A GNOME Wayland desktop launcher for Steam Big Picture inside Gamescope.
 It reads GNOME's user-selected primary monitor and its **active physical mode**
-at each launch, then maps that monitor to the same SDL2 Wayland backend used by
-Gamescope. Fractional scaling and rotated displays are accounted for. No screen
+at each launch. SDR uses the SDL2 backend; HDR uses Gamescope’s native
+Wayland backend for color management. Fractional scaling and rotated displays are accounted for. No screen
 size, refresh rate, or connector is hardcoded.
 
 Rendering, output and the virtual game display start at the detected native pixel
@@ -22,9 +22,7 @@ Gamescope while Steam starts. It disappears when Steam presents a visible window
 including an updater or login window. Hidden helper windows do not dismiss it.
 Launch failure/exit closes it; a failed window probe never permanently covers Steam.
 
-The launcher includes and starts MangoApp, the performance-overlay component
-selected by Steam's Gamescope integration. Steam retains control of its overlay
-settings. Games keep their own refresh/VSync/frame-limit settings: a detected
+Games keep their own refresh/VSync/frame-limit settings: a detected
 120 Hz display does not override a game's saved 60 Hz mode or VSync choice.
 
 Quit any existing Steam client first. Steam is a singleton; otherwise it forwards
@@ -42,3 +40,31 @@ Primary sources:
 - [Gamescope refresh selection](https://github.com/ValveSoftware/gamescope/blob/3.16.23/src/steamcompmgr.cpp)
 
 The launcher is MIT licensed; Steam and Gamescope retain their own licenses.
+
+Keyboard layouts, their variants and XKB options are copied from GNOME input
+sources at launch, rather than using Gamescope's default keyboard map. The
+selected source is placed first. Restart this launcher after changing sources
+or options; existing sessions do not dynamically follow input-source changes.
+IBus input methods cannot be represented by Gamescope's XKB configuration and
+produce an explicit error instead of silently selecting a US keyboard.
+`--print-plan` includes the keyboard environment for diagnosis.
+
+HDR follows GNOME’s primary monitor color mode. HDR launches use `--hdr-enabled`,
+the matching Gamescope WSI layer and `DXVK_HDR=1`; no debug force flags are used.
+The packaged Gamescope patch accepts Mutter’s HDR10 PQ capability subset, skips
+unsupported mastering metadata and Windows scRGB requests, and composites scRGB
+clients to PQ when needed. Upstream interoperability report:
+https://github.com/ValveSoftware/gamescope/issues/2249
+The patch is derived from Gamescope 3.16.23, BSD-2-Clause; it is maintained here
+alongside the launcher that requires it. Optional metadata is omitted on hosts
+that cannot accept it. Actual HDR appearance/calibration still requires game testing.
+
+Adaptive sync follows the active GNOME display mode: select Variable Refresh Rate
+in GNOME Display Settings to enable FreeSync/VRR, then relaunch. Gamescope cannot
+enable host-compositor VRR with a command-line flag alone. HDR fullscreen placement
+is controlled by GNOME’s native Wayland window placement; SDL’s display-index
+option does not apply to that backend.
+
+At launch, Xcursor gets GNOME’s current theme and cursor size multiplied by the
+primary monitor scale, since Gamescope’s virtual X display uses physical pixels.
+Application-defined game cursors can choose their own size.
