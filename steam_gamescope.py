@@ -138,7 +138,7 @@ def command(mode, index, previous=None):
             "-f", "-e", "--xwayland-count", "2",
             "-W", str(mode["width"]), "-H", str(mode["height"]),
             "-w", str(mode["width"]), "-h", str(mode["height"]),
-            "-r", str(refresh),
+            "-r", str(refresh), "--nested-unfocused-refresh", "15",
             "--", *client]
 
 

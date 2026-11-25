@@ -68,3 +68,13 @@ option does not apply to that backend.
 At launch, Xcursor gets GNOME’s current theme and cursor size multiplied by the
 primary monitor scale, since Gamescope’s virtual X display uses physical pixels.
 Application-defined game cursors can choose their own size.
+
+When the host Gamescope window loses keyboard focus (including minimization),
+the launcher limits its nested refresh to 15 FPS. Focus restores the refresh
+selected at launch; the monitor mode, HDR, VRR and individual game settings stay
+unchanged. SDR uses the existing SDL implementation. HDR includes the native
+Wayland fix from [Gamescope PR 2556](https://github.com/ValveSoftware/gamescope/pull/2556)
+by Brandon Falk (BSD-2-Clause, original patch attribution retained).
+Hosts that never report the optional activated state keep the foreground rate;
+the Wayland implementation starts throttling after the first reported activation.
+An already-running Gamescope process needs a natural quit/relaunch to use an update.

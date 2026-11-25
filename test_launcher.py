@@ -47,6 +47,16 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(argv[-1], "steam-gamescope-session")
         self.assertNotIn("--mangoapp", argv)
 
+    def test_background_limit_preserves_foreground_refresh_for_both_backends(self):
+        for hdr in (False, True):
+            for refresh in (60, 144, 240):
+                with self.subTest(hdr=hdr, refresh=refresh):
+                    mode = primary_mode(state())
+                    mode.update(hdr=hdr, refresh_hz=refresh)
+                    argv = command(mode, 0)
+                    self.assertEqual(argv[argv.index("--nested-unfocused-refresh")+1], "15")
+                    self.assertEqual(argv[argv.index("-r")+1], str(refresh))
+
     def test_keyboard_copies_polish_instead_of_defaulting_to_us(self):
         self.assertEqual(keyboard_environment([("xkb", "pl")], []), {
             "XKB_DEFAULT_LAYOUT": "pl", "XKB_DEFAULT_VARIANT": "",

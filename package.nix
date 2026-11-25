@@ -1,24 +1,24 @@
-{ lib, stdenvNoCC, python3, makeWrapper, makeDesktopItem, copyDesktopItems
+{ lib, stdenvNoCC, buildPackages, python3, makeWrapper, makeDesktopItem, copyDesktopItems
 , gamescope, steam, SDL2, glib, gtk3, wrapGAppsHook3, libnotify, coreutils
 , xvfb-run, makeFontsConf, dejavu_fonts, gobject-introspection, hicolor-icon-theme }:
 let
   desktopGamescope = (gamescope.override { enableWsi = true; }).overrideAttrs (old: {
-    patches = (old.patches or []) ++ [ ./patches/gnome-hdr10.patch ];
+    patches = (old.patches or []) ++ [ ./patches/gnome-hdr10.patch ./patches/wayland-unfocused-refresh.patch ];
   });
   python = python3.withPackages (p: [ p.pygobject3 p.xlib ]);
 in
 stdenvNoCC.mkDerivation {
   pname = "steam-gamescope";
-  version = "1.2.1";
+  version = "1.2.2";
   src = lib.cleanSource ./.;
   nativeBuildInputs = [ makeWrapper copyDesktopItems wrapGAppsHook3 gobject-introspection ];
   buildInputs = [ gtk3 hicolor-icon-theme steam ];
   dontWrapGApps = true;
   dontBuild = true;
   doCheck = true;
-  nativeCheckInputs = [ xvfb-run ];
+  nativeCheckInputs = [ xvfb-run buildPackages.stdenv.cc ];
   checkPhase = ''
-    PYTHONDONTWRITEBYTECODE=1 ${python}/bin/python3 -m unittest -v test_launcher
+    PYTHONDONTWRITEBYTECODE=1 ${python}/bin/python3 -m unittest -v test_launcher test_wayland_focus
   '';
   desktopItems = [ (makeDesktopItem {
     name = "com.neg-zero.SteamGamescope";
